@@ -1,0 +1,22 @@
+[package]
+name = "host_exposer_server"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+clap = { workspace = true, features = ["derive", "unicode", "env"] }
+log = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+pretty_env_logger = { workspace = true }
+tokio = { workspace = true, features = ["rt", "rt-multi-thread", "macros"] }
+warp = { workspace = true, features = ["tokio-rustls"] }
+public-lib = { workspace = true }
+tokio-stream = { version = "0.1.14", features = ["net"] }
+futures-util = { workspace = true }
+uuid = { workspace = true, features = ["serde"] }
+sea-orm = { version = "0.12.14", features = ["sqlx-sqlite", "runtime-tokio-rustls"] }
+time = { version = "0.3.34", features = ["serde-human-readable", "local-offset"] }
+thiserror = "1.0.57"

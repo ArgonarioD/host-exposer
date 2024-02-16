@@ -1,0 +1,11 @@
+/target
+/external
+
+node_modules/**
+dist/**
+
+.idea
+
+.exposer_id
+data.sqlite
+.env*
