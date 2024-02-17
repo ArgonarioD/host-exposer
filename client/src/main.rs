@@ -116,12 +116,16 @@ fn build_ip_addresses_response() -> MessagePack {
                 addresses.append_address(*ip);
             }
             None => {
-                ip_to_name_map.insert(name.to_string(), IpAddresses::new_with_one_address(*ip));
+                let mut addresses = IpAddresses::empty(name.to_string());
+                addresses.append_address(*ip);
+                ip_to_name_map.insert(name.to_string(), addresses);
             }
         }
     }
 
     MessagePack::AddrResponse {
-        adapter_addresses: ip_to_name_map
+        adapter_addresses: ip_to_name_map.values()
+            .cloned()
+            .collect::<Vec<IpAddresses>>()
     }
 }

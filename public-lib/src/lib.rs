@@ -1,5 +1,4 @@
 pub mod public_lib {
-    use std::collections::HashMap;
     use std::env;
     use std::fmt::{Display, Formatter};
     use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
@@ -9,30 +8,19 @@ pub mod public_lib {
     use tokio_tungstenite::tungstenite::Message;
     use uuid::Uuid;
 
-    #[derive(Debug, Serialize, Deserialize)]
+    #[derive(Debug, Serialize, Deserialize, Clone)]
     pub struct IpAddresses {
+        pub name: String,
         pub v4: Option<Ipv4Addr>,
         pub v6: Option<Ipv6Addr>,
     }
 
     impl IpAddresses {
-        pub fn empty() -> IpAddresses {
+        pub fn empty(name: String) -> IpAddresses {
             IpAddresses {
+                name,
                 v4: None,
                 v6: None,
-            }
-        }
-
-        pub fn new_with_one_address(ip: IpAddr) -> IpAddresses {
-            match ip {
-                IpAddr::V4(v4) => IpAddresses {
-                    v4: Some(v4),
-                    v6: None,
-                },
-                IpAddr::V6(v6) => IpAddresses {
-                    v4: None,
-                    v6: Some(v6),
-                },
             }
         }
 
@@ -53,7 +41,7 @@ pub mod public_lib {
         Acknowledge,
         AddrRequest,
         AddrResponse {
-            adapter_addresses: HashMap<String, IpAddresses>
+            adapter_addresses: Vec<IpAddresses>
         },
         Error {
             message: String

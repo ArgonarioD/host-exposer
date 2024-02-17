@@ -33,7 +33,7 @@ pub struct Client {
 }
 
 impl Client {
-    async fn get_adapter_addresses(&mut self, db: &DbConn) -> Result<HashMap<String, IpAddresses>, HEError> {
+    async fn get_adapter_addresses(&mut self, db: &DbConn) -> Result<Vec<IpAddresses>, HEError> {
         self.handler_tx.send(MessagePack::AddrRequest.to_warp_message()).unwrap();
         if let Some(message) = self.client_rx.next().await {
             match MessagePack::from_str(message.to_str().unwrap()) {
@@ -133,11 +133,7 @@ pub async fn get_clients_information(clients: Clients, db: Arc<DbConn>) -> Resul
     for (id, client) in clients.iter_mut() {
         let client_adapter_addresses = client.get_adapter_addresses(db).await.unwrap_or_else(|e| {
             error!("Failed to get adapter addresses: {:?}", e);
-            match e {
-                HEError::Io(error) => { HashMap::from([(error.to_string(), IpAddresses::empty())]) }
-                HEError::Message(msg) => { HashMap::from([(msg, IpAddresses::empty())]) }
-                HEError::Db(error) => { HashMap::from([(error.to_string(), IpAddresses::empty())]) }
-            }
+            vec![IpAddresses::empty(e.to_string())]
         });
         clients_info.push(json!({
             "entity": target_clients.get(id).unwrap(),
