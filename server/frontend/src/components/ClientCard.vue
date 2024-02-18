@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { PropType, ref } from 'vue'
-import { ClientInformation } from '@/services/client'
+import { ClientInformation, editClientName } from '@/services/client'
 import useClipboard from 'vue-clipboard3'
+import { Ref } from 'vue'
 
 const props = defineProps({
     client: {
@@ -12,23 +13,84 @@ const props = defineProps({
 
 const { toClipboard } = useClipboard()
 const showSnackbar = ref(false)
-const copiedText = ref('')
+const snackbarText = ref('')
+
+const newName = ref(props.client.entity.name)
+const newNameRules = [
+    (value: string) => !!value.trim() || 'Name cannot be empty or whitespace',
+]
+const submitNewNameLoading = ref(false)
+
+async function submitNewName(dialogIsActive: Ref<boolean>) {
+    submitNewNameLoading.value = true
+    try {
+        await editClientName(props.client.entity.id, newName.value)
+        props.client.entity.name = newName.value
+    } catch (e) {
+        snackbar(`${e}`)
+    }
+    dialogIsActive.value = false
+    newName.value = ''
+    submitNewNameLoading.value = false
+}
+
+async function cancelEditName(dialogIsActive: Ref<boolean>) {
+    dialogIsActive.value = false
+    newName.value = ''
+}
 
 async function copyToClipboard(text: string) {
     await toClipboard(text)
+    snackbar(`Copied ${text} to clipboard.`)
+}
+
+function snackbar(text: string) {
     showSnackbar.value = true
-    copiedText.value = text
+    snackbarText.value = text
     setTimeout(() => {
         showSnackbar.value = false
     }, 3000)
 }
 </script>
 <template>
-    <v-card
-        :title="props.client.entity.name"
-        :subtitle="props.client.entity.id"
-        elevation="3"
-    >
+    <v-card :subtitle="props.client.entity.id" elevation="3">
+        <template #title>
+            {{ props.client.entity.name }}
+            <v-dialog width="500">
+                <template #activator="{ props }">
+                    <v-btn
+                        v-bind="props"
+                        icon="mdi-pencil"
+                        variant="text"
+                        color="primary"
+                    />
+                </template>
+                <template #default="{ isActive }">
+                    <v-card :title="`Rename ${props.client.entity.name}`">
+                        <template #text>
+                            <v-text-field
+                                v-model="newName"
+                                :rules="newNameRules"
+                                :label="`New Name of ${props.client.entity.name}`"
+                            />
+                        </template>
+                        <template #actions>
+                            <v-btn
+                                text="submit"
+                                color="primary"
+                                :loading="submitNewNameLoading"
+                                @click="async () => submitNewName(isActive)"
+                            />
+                            <v-btn
+                                text="cancel"
+                                color="grey"
+                                @click="async () => cancelEditName(isActive)"
+                            />
+                        </template>
+                    </v-card>
+                </template>
+            </v-dialog>
+        </template>
         <template #text>
             <p>
                 <span class="font-weight-bold">Last Fetched Time:</span>
@@ -76,7 +138,7 @@ async function copyToClipboard(text: string) {
                 </div>
             </v-list>
             <v-snackbar v-model="showSnackbar">
-                Copied {{ copiedText }} to clipboard.
+                {{ snackbarText }}
                 <template #actions>
                     <v-btn
                         variant="text"
