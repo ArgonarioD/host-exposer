@@ -21,3 +21,10 @@
    host-exposer-client ws://your-server-ip:3030/expose -p 'your-password'
    ```
 3. 通过浏览器访问服务端监听的端口，输入密码，即可查看所有已连接到服务端的客户端的主机地址。
+
+## 预览
+
+1. PC 端：
+   ![PC Preview](doc-assets/pc-preview.png)
+2. 移动端：
+   ![Mobile Preview](doc-assets/mobile-preview.jpg)

@@ -22,3 +22,10 @@ English | <a href="README_zh_CN.md">简体中文</a>
    ```
 
 3. Access the port that the server is listening on via a web browser, enter the password, and you can view all the host addresses of the clients that have connected to the server.
+
+## Preview
+
+1. On PC:
+   ![PC Preview](doc-assets/pc-preview.png)
+2. On mobile:
+   ![Mobile Preview](doc-assets/mobile-preview.jpg)
