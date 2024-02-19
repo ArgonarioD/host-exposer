@@ -9,7 +9,6 @@ declare module 'vue' {
   export interface GlobalComponents {
     ClientCard: typeof import('./src/components/ClientCard.vue')['default']
     ClientList: typeof import('./src/components/ClientList.vue')['default']
-    HelloWorld: typeof import('./src/components/HelloWorld.vue')['default']
     LoginForm: typeof import('./src/components/LoginForm.vue')['default']
   }
 }

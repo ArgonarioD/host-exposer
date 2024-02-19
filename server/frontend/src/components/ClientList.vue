@@ -18,12 +18,28 @@ onMounted(async () => {
 </script>
 <template>
     <div class="text-center ma-3">
-        <v-btn color="primary" :loading="loading" variant="outlined" text="refresh clients' information" prepend-icon="mdi-refresh" @click="refreshClientsInformation"/>
+        <span v-if="clients && clients.length > 0" class="ma-2">
+            {{ clients?.length }} Client{{
+                clients.length > 1 ? 's' : ''
+            }}
+            Connected
+        </span>
+        <v-btn
+            color="primary"
+            :loading="loading"
+            variant="outlined"
+            text="refresh clients' information"
+            prepend-icon="mdi-refresh"
+            @click="refreshClientsInformation"
+        />
     </div>
     <div v-if="loading" class="ma-5 pa-5">
-        <v-skeleton-loader type="card, list-item-three-line, list-item-three-line" elevation="3"/>
+        <v-skeleton-loader
+            type="card, list-item-three-line, list-item-three-line"
+            elevation="3"
+        />
     </div>
-    <div v-else class="d-flex">
+    <div v-else class="d-flex flex-wrap">
         <ClientCard
             class="ma-2 pa-2"
             v-for="client in clients"
