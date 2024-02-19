@@ -1,65 +1,87 @@
-use std::sync::Arc;
+use axum::{middleware, Router};
+use axum::routing::{get, put};
+use base64::Engine;
+use base64::prelude::BASE64_STANDARD;
 use clap::Parser;
-use sea_orm::Database;
-use uuid::Uuid;
-use warp::Filter;
-use clients::Clients;
+use sea_orm::{Database, DatabaseConnection};
+use sea_orm_migration::MigratorTrait;
+use tracing::warn;
+use tracing_subscriber::fmt::time::LocalTime;
 
-use public_lib::public_lib::set_default_logger_level;
-use crate::db::setup_schema;
+use clients::Clients;
+use public_lib::tracing::TracingLogLevel;
+
+use crate::auth::basic_auth;
+use crate::migration::Migrator;
 
 mod result;
 mod clients;
 mod db;
 mod entity;
+mod auth;
+mod migration;
 
+// TODO: 将页面包含在 app 内
 #[derive(Parser, Debug)]
 #[command(name = "Host Exposer Server")]
 #[command(author, version, about)]
 struct Args {
+    /// Port to listen on
     #[arg(short, long, default_value = "3030")]
     port: u16,
+    /// Password for the server, if not specified, a random password of random-password-length will be generated
+    #[arg(long, value_name = "PASSWORD")]
+    pwd: Option<String>,
+    /// Length of the random password to generate
+    #[arg(short, long, default_value = "16")]
+    random_password_length: u8,
+    /// Maximum Log level
+    #[arg(long, ignore_case = true, value_enum, default_value_t)]
+    max_log_level: TracingLogLevel,
+}
+
+#[derive(Clone)]
+struct AppState {
+    db: DatabaseConnection,
+    clients: Clients,
+    server_base64_password: String,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    set_default_logger_level("info");
-    pretty_env_logger::init_timed();
     let args = Args::parse();
 
+    let timer = LocalTime::new(time::format_description::well_known::Iso8601::DATE_TIME_OFFSET);
+    tracing_subscriber::fmt().with_timer(timer).with_max_level(args.max_log_level).init();
+
     let db = Database::connect("sqlite://data.sqlite?mode=rwc").await?;
-    setup_schema(&db).await;
-    let db = Arc::new(db);
-    let db_filter = warp::any().map(move || db.clone());
+    Migrator::up(&db, None).await?;
 
-    let clients = Clients::default();
-    let clients_filter = warp::any().map(move || clients.clone());
+    let password = match args.pwd {
+        Some(pwd) => pwd,
+        None => {
+            let result = auth::random_password(args.random_password_length);
+            warn!("No password specified, generated random password: {}", result);
+            result
+        }
+    };
+    let base64_password = BASE64_STANDARD.encode(password);
 
-    let expose = warp::path("expose")
-        .and(warp::ws())
-        .and(clients_filter.clone())
-        .and(db_filter.clone())
-        .map(|ws: warp::ws::Ws, clients, db| {
-            ws.on_upgrade(move |socket| clients::handle_connection(socket, clients, db))
-        });
+    let state = AppState { db, clients: Clients::default(), server_base64_password: base64_password };
 
-    let clients_information = warp::path("client")
-        .and(warp::get())
-        .and(clients_filter.clone())
-        .and(db_filter.clone())
-        .and_then(clients::get_clients_information);
+    let client_rest_router = Router::new()
+        .route("/", get(clients::get_clients_information))
+        .route("/auth", get(move || async move {}))
+        .route("/:id", put(clients::modify_client_name))
+        .route_layer(middleware::from_fn_with_state(state.clone(), basic_auth))
+        .with_state(state.clone());
 
-    let modify_client_name = warp::path!("client" / Uuid)
-        .and(warp::put())
-        .and(db_filter.clone())
-        .and(warp::body::content_length_limit(100))
-        .and(warp::body::json())
-        .and_then(clients::modify_client_name);
-
-    let routes = expose
-        .or(clients_information)
-        .or(modify_client_name);
-
-    warp::serve(routes).run(([0, 0, 0, 0], args.port)).await;
+    let app = Router::new()
+        .route("/expose", get(clients::handle_expose_websocket))
+        .nest("/client", client_rest_router)
+        .with_state(state.clone());
+    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", args.port)).await?;
+    axum::serve(listener, app).await?;
     Ok(())
 }
+

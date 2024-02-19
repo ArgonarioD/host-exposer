@@ -1,18 +1,22 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
+use base64::Engine;
+use base64::prelude::BASE64_STANDARD;
 use clap::{arg, Parser};
 use futures_util::{SinkExt, StreamExt};
 use local_ip_address::list_afinet_netifas;
-use log::{error, info};
 use tokio::fs::OpenOptions;
 use tokio::io;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::http::Uri;
+use tracing::{debug, error, info};
+use tracing_subscriber::fmt::time::LocalTime;
 use uuid::Uuid;
 
-use public_lib::public_lib::{IpAddresses, MessagePack, set_default_logger_level};
+use public_lib::message::{IpAddresses, MessagePack};
+use public_lib::tracing::TracingLogLevel;
 
 #[derive(Parser, Debug)]
 #[command(name = "Host Exposer Client")]
@@ -21,6 +25,12 @@ struct Args {
     /// Target server websocket URI
     #[arg(short, long, value_parser = parse_uri, value_name = "URI")]
     target_uri: Uri,
+    /// Password for the server
+    #[arg(short, long, value_name = "PASSWORD")]
+    pwd: String,
+    /// Maximum Log level
+    #[arg(long, ignore_case = true, value_enum, default_value_t)]
+    max_log_level: TracingLogLevel,
 }
 
 fn parse_uri(s: &str) -> Result<Uri, String> {
@@ -58,23 +68,28 @@ async fn get_self_id() -> io::Result<Uuid> {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    set_default_logger_level("info");
-    pretty_env_logger::init_timed();
     let args = Args::parse();
+    let timer = LocalTime::new(time::format_description::well_known::Iso8601::DATE_TIME_OFFSET);
+    tracing_subscriber::fmt().with_timer(timer).with_max_level(args.max_log_level).init();
     let (ws_stream, _) = connect_async(&args.target_uri).await?;
     info!("Establishing connection to server {}", &args.target_uri);
     let self_id = get_self_id().await?;
     info!("Self id: {}", &self_id);
     let (mut ws_tx, mut ws_rx) = ws_stream.split();
     ws_tx.send(
-        MessagePack::Establish { id: self_id }.to_message()
+        MessagePack::Establish { id: self_id, password: BASE64_STANDARD.encode(args.pwd) }.to_message()
     ).await?;
     if let Some(Ok(msg)) = ws_rx.next().await {
         let text = msg.to_text()?;
         match MessagePack::from_str(text)? {
             MessagePack::Acknowledge => {}
+            MessagePack::Error { message } => {
+                error!("Received error message: {}", message);
+                return Ok(());
+            }
             pack => {
-                panic!("Unexpected message: {:?} from server when establishing connection, expected Acknowledge message.", pack)
+                error!("Unexpected message: {:?} from server when establishing connection, expected Acknowledge message.", pack);
+                return Ok(());
             }
         }
     }
@@ -82,7 +97,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     while let Some(result) = ws_rx.next().await {
         let message = result?;
         let text = message.to_text()?;
-        info!("Received message: {}", text);
+        debug!("Received message: {}", text);
         match MessagePack::from_str(text) {
             Ok(MessagePack::AddrRequest) => {
                 ws_tx.send(build_ip_addresses_response().to_message()).await

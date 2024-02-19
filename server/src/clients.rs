@@ -2,21 +2,23 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
 
+use axum::extract::{Path, State, WebSocketUpgrade};
+use axum::extract::ws::{Message, WebSocket};
+use axum::Json;
+use axum::response::IntoResponse;
 use futures_util::{SinkExt, StreamExt};
-use log::{error, info};
-use sea_orm::{ColumnTrait, DbConn, EntityTrait, QueryFilter};
+use tracing::{debug, error, info};
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use time::OffsetDateTime;
 use tokio::sync::{mpsc, RwLock};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use uuid::Uuid;
-use warp::{reject, Rejection, Reply};
-use warp::ws::{Message, WebSocket};
 
-use public_lib::public_lib::{IpAddresses, MessagePack};
+use public_lib::message::{IpAddresses, MessagePack};
 
-use crate::db;
+use crate::{AppState, db};
 use crate::db::client::save_new_client_information;
 use crate::entity::client;
 use crate::entity::prelude::DbClient;
@@ -33,10 +35,10 @@ pub struct Client {
 }
 
 impl Client {
-    async fn get_adapter_addresses(&mut self, db: &DbConn) -> Result<Vec<IpAddresses>, HEError> {
-        self.handler_tx.send(MessagePack::AddrRequest.to_warp_message()).unwrap();
+    async fn get_adapter_addresses(&mut self, db: &DatabaseConnection) -> Result<Vec<IpAddresses>, HEError> {
+        self.handler_tx.send(MessagePack::AddrRequest.to_framework_message())?;
         if let Some(message) = self.client_rx.next().await {
-            match MessagePack::from_str(message.to_str().unwrap()) {
+            match MessagePack::from_str(message.to_text().unwrap()) {
                 Ok(MessagePack::AddrResponse { adapter_addresses }) => {
                     save_new_client_information(&self.id, db).await?;
                     Ok(adapter_addresses)
@@ -56,7 +58,13 @@ impl Client {
 
 pub type Clients = Arc<RwLock<HashMap<Uuid, Client>>>;
 
-pub async fn handle_connection(ws: WebSocket, clients: Clients, db: Arc<DbConn>) {
+pub async fn handle_expose_websocket(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl IntoResponse {
+    ws.on_upgrade(|socket| async {
+        handle_connection(socket, state.clients, state.db, state.server_base64_password).await
+    })
+}
+
+pub async fn handle_connection(ws: WebSocket, clients: Clients, db: DatabaseConnection, server_password: String) {
     info!("Establishing connection");
     let (mut ws_tx, mut ws_rx) = ws.split();
 
@@ -68,15 +76,19 @@ pub async fn handle_connection(ws: WebSocket, clients: Clients, db: Arc<DbConn>)
     let client_id;
     if let Some(message) = ws_rx.next().await {
         let msg = message.unwrap();
-        let text = msg.to_str().unwrap();
-        info!("Received message: {}", text);
+        let text = msg.to_text().unwrap();
+        debug!("Received message: {}", text);
         match MessagePack::from_str(text).unwrap() {
-            MessagePack::Establish { id } => {
+            MessagePack::Establish { id, password } => {
+                if password != server_password {
+                    ws_tx.send(MessagePack::Error { message: "Invalid password".to_string() }.to_framework_message()).await.unwrap();
+                    return;
+                }
                 client_id = id;
                 clients.write().await.insert(id, Client { id, handler_tx, client_rx });
                 info!("Establishing connection with id: {}", &id);
-                ws_tx.send(MessagePack::Acknowledge.to_warp_message()).await.unwrap();
-                if let Err(e) = save_new_client_information(&id, db.as_ref()).await {
+                ws_tx.send(MessagePack::Acknowledge.to_framework_message()).await.unwrap();
+                if let Err(e) = save_new_client_information(&id, &db).await {
                     error!("Failed to save new client information: {:?}", e);
                     return;
                 }
@@ -113,16 +125,16 @@ pub async fn handle_connection(ws: WebSocket, clients: Clients, db: Arc<DbConn>)
     clients.write().await.remove(&client_id);
 }
 
-pub async fn get_clients_information(clients: Clients, db: Arc<DbConn>) -> Result<impl Reply, Rejection> {
-    let mut clients = clients.write().await;
+pub async fn get_clients_information(State(state): State<AppState>) -> Result<Json<Vec<Value>>, HEError> {
+    let mut clients = state.clients.write().await;
     let mut clients_info: Vec<Value> = Vec::new();
     let all_client_ids: Vec<Uuid> = clients.keys()
         .copied()
         .collect();
-    let db = db.as_ref();
+    let db = &state.db;
     let target_clients: HashMap<Uuid, client::Model> = DbClient::find()
         .filter(client::Column::Id.is_in(all_client_ids))
-        .all(db).await.unwrap()
+        .all(db).await?
         .into_iter()
         .map(|mut client| {
             client.last_fetch_time = OffsetDateTime::now_local().unwrap();
@@ -141,10 +153,8 @@ pub async fn get_clients_information(clients: Clients, db: Arc<DbConn>) -> Resul
         }));
         updated_client_ids.push(*id);
     }
-    if let Err(e) = db::client::update_clients_fetch_time(updated_client_ids.as_slice(), db).await {
-        return Err(reject::custom(e));
-    }
-    Ok(warp::reply::json(&clients_info))
+    db::client::update_clients_fetch_time(updated_client_ids.as_slice(), db).await?;
+    Ok(Json(clients_info))
 }
 
 #[derive(Deserialize)]
@@ -152,11 +162,13 @@ pub struct ModifyClientNameBody {
     new_name: String,
 }
 
-pub async fn modify_client_name(id: Uuid, db: Arc<DbConn>, body: ModifyClientNameBody) -> Result<impl Reply, Rejection> {
-    let db = db.as_ref();
-    if let Err(e) = db::client::modify_client_name(&id, body.new_name, db).await {
-        return Err(reject::custom(e));
-    }
-    Ok(warp::reply::with_status("", warp::http::StatusCode::NO_CONTENT))
+pub async fn modify_client_name(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<ModifyClientNameBody>
+) -> Result<(), HEError> {
+    let db = &state.db;
+    db::client::modify_client_name(&id, body.new_name, db).await?;
+    Ok(())
 }
 

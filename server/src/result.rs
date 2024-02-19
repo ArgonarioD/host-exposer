@@ -1,6 +1,8 @@
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
+use tokio::sync::mpsc::error::SendError;
 use sea_orm::DbErr;
 use thiserror::Error;
-use warp::reject::Reject;
 
 #[derive(Error, Debug)]
 pub enum HEError {
@@ -13,4 +15,14 @@ pub enum HEError {
     Db(#[from] DbErr)
 }
 
-impl Reject for HEError {}
+impl <T> From<SendError<T>> for HEError {
+    fn from(e: SendError<T>) -> Self {
+        HEError::Message(format!("Error sending message: {}", e))
+    }
+}
+
+impl IntoResponse for HEError {
+    fn into_response(self) -> Response {
+        (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()).into_response()
+    }
+}
