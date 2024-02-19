@@ -18,11 +18,12 @@ onMounted(async () => {
 </script>
 <template>
     <div class="text-center ma-3">
-        <span v-if="clients && clients.length > 0" class="ma-2">
-            {{ clients?.length }} Client{{
-                clients.length > 1 ? 's' : ''
-            }}
-            Connected
+        <span class="ma-2">
+            <span v-if="clients && clients.length > 0">
+                {{ clients?.length }} Client{{ clients.length > 1 ? 's' : '' }}
+                Connected
+            </span>
+            <span v-else> No Clients Connected </span>
         </span>
         <v-btn
             color="primary"

@@ -25,3 +25,5 @@ base64 = { workspace = true }
 axum = { workspace = true, features = ["ws", "http2"] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["time", "local-time"] }
+rust-embed = { version = "8.2.0", features = ["axum-ex", "compression"] }
+axum-embed = "0.1.0"

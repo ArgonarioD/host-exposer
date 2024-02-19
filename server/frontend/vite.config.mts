@@ -3,6 +3,7 @@ import Components from 'unplugin-vue-components/vite'
 import Vue from '@vitejs/plugin-vue'
 import Vuetify, { transformAssetUrls } from 'vite-plugin-vuetify'
 import ViteFonts from 'unplugin-fonts/vite'
+import ViteCompression from 'vite-plugin-compression'
 
 // Utilities
 import { defineConfig } from 'vite'
@@ -27,6 +28,7 @@ export default defineConfig({
         ],
       },
     }),
+    ViteCompression()
   ],
   define: { 'process.env': {} },
   resolve: {
@@ -41,7 +43,6 @@ export default defineConfig({
       '/api': {
         target: 'http://127.0.0.1:3030',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
       },
     }
   },

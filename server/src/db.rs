@@ -1,3 +1,17 @@
+use sea_orm::{ConnectOptions, Database, DatabaseConnection};
+use sea_orm_migration::MigratorTrait;
+use tracing::log;
+use crate::migration::Migrator;
+use crate::result::HEError;
+
+pub async fn setup_db_connection() -> Result<DatabaseConnection, HEError> {
+    let mut opt = ConnectOptions::new("sqlite://data.sqlite?mode=rwc".to_owned());
+    opt.sqlx_logging_level(log::LevelFilter::Debug);
+    let db = Database::connect(opt).await?;
+    Migrator::up(&db, None).await?;
+    Ok(db)
+}
+
 pub(crate) mod client {
     use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
     use sea_orm::ActiveValue::Set;

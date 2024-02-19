@@ -65,7 +65,6 @@ pub async fn handle_expose_websocket(ws: WebSocketUpgrade, State(state): State<A
 }
 
 pub async fn handle_connection(ws: WebSocket, clients: Clients, db: DatabaseConnection, server_password: String) {
-    info!("Establishing connection");
     let (mut ws_tx, mut ws_rx) = ws.split();
 
     let (handler_tx, handler_rx) = mpsc::unbounded_channel();

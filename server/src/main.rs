@@ -1,10 +1,11 @@
 use axum::{middleware, Router};
 use axum::routing::{get, put};
+use axum_embed::{FallbackBehavior, ServeEmbed};
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 use clap::Parser;
-use sea_orm::{Database, DatabaseConnection};
-use sea_orm_migration::MigratorTrait;
+use rust_embed::RustEmbed;
+use sea_orm::DatabaseConnection;
 use tracing::warn;
 use tracing_subscriber::fmt::time::LocalTime;
 
@@ -12,7 +13,7 @@ use clients::Clients;
 use public_lib::tracing::TracingLogLevel;
 
 use crate::auth::basic_auth;
-use crate::migration::Migrator;
+use crate::db::setup_db_connection;
 
 mod result;
 mod clients;
@@ -21,7 +22,11 @@ mod entity;
 mod auth;
 mod migration;
 
-// TODO: 将页面包含在 app 内
+
+#[derive(RustEmbed, Clone)]
+#[folder = "frontend/dist/"]
+struct AppWebPages;
+
 #[derive(Parser, Debug)]
 #[command(name = "Host Exposer Server")]
 #[command(author, version, about)]
@@ -54,8 +59,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let timer = LocalTime::new(time::format_description::well_known::Iso8601::DATE_TIME_OFFSET);
     tracing_subscriber::fmt().with_timer(timer).with_max_level(args.max_log_level).init();
 
-    let db = Database::connect("sqlite://data.sqlite?mode=rwc").await?;
-    Migrator::up(&db, None).await?;
+    let db = setup_db_connection().await?;
 
     let password = match args.pwd {
         Some(pwd) => pwd,
@@ -78,7 +82,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let app = Router::new()
         .route("/expose", get(clients::handle_expose_websocket))
-        .nest("/client", client_rest_router)
+        .nest("/api/client", client_rest_router)
+        .nest_service("/", ServeEmbed::<AppWebPages>::with_parameters(
+            None,
+            FallbackBehavior::NotFound,
+            Some("index.html".to_owned()),
+        ))
         .with_state(state.clone());
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", args.port)).await?;
     axum::serve(listener, app).await?;
