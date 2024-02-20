@@ -16,11 +16,11 @@ jobs:
       matrix:
         platform:
           - release_for: Linux-x86_64
-            os: ubuntu-20.04
+            os: ubuntu-latest
             target: x86_64-unknown-linux-musl
             bins: ["host_exposer_client", "host_exposer_server"]
           - release_for: Linux-aarch64
-            os: ubuntu-20.04
+            os: ubuntu-latest
             target: aarch64-unknown-linux-musl
             bins: ["host_exposer_client", "host_exposer_server"]
           - release_for: Windows-x86_64
@@ -53,13 +53,13 @@ jobs:
       - name: Build Server Frontend
         shell: bash
         working-directory: server/frontend
-        run: pnpm build && ls -al && echo '' && ls -al dist
+        run: pnpm build
 
-      - name: Setup Rustup toolchain
-        run: rustup toolchain install stable --profile minimal --target ${{ matrix.platform.target }} --no-self-update
+      # - name: Setup Rustup toolchain
+      #   run: rustup toolchain install stable --profile minimal --target ${{ matrix.platform.target }} --no-self-update
 
-      - name: Setup Rust cache
-        uses: Swatinem/rust-cache@v2
+      # - name: Setup Rust cache
+      #   uses: Swatinem/rust-cache@v2
 
       - name: Build binaries
         uses: houseabsolute/actions-rust-cross@v0
