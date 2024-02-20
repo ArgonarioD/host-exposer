@@ -1,0 +1,65 @@
+name: Release
+
+on:
+  push:
+    branches: [ "main" ]
+    tags: [ "v**" ]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  release:
+    name: Release - ${{ matrix.platform.release_for }}
+    strategy:
+      matrix:
+        platform:
+          - release_for: Linux-x86_64
+            os: ubuntu-20.04
+            target: x86_64-unknown-linux-musl
+            bins: [ "host_exposer_client", "host_exposer_server" ]
+          - release_for: Linux-aarch64
+            os: ubuntu-20.04
+            target: aarch64-unknown-linux-musl
+            bins: [ "host_exposer_client", "host_exposer_server" ]
+          - release_for: Windows-x86_64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bins: [ "host_exposer_client.exe", "host_exposer_server.exe" ]
+          - release_for: Windows-aarch64
+            os: windows-latest
+            target: aarch64-pc-windows-msvc
+            bins: [ "host_exposer_client.exe", "host_exposer_server.exe" ]
+          - release_for: macOS-x86_64
+            os: macos-latest
+            target: x86_64-apple-darwin
+            bins: [ "host_exposer_client", "host_exposer_server" ]
+          - release_for: macOS-aarch64
+            os: macos-latest
+            target: aarch64-apple-darwin
+            bins: [ "host_exposer_client", "host_exposer_server" ]
+
+    runs-on: ${{ matrix.platform.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Build binary
+        uses: houseabsolute/actions-rust-cross@v0
+        with:
+          target: ${{ matrix.platform.target }}
+          strip: true
+          args: "--release --locked --bins"
+      - name: Move and rename binaries
+        shell: bash
+        run: |
+          for bin in ${{ matrix.platform.bins }}; do
+            mv target/${{ matrix.platform.target }}/release/$bin $bin-${{ matrix.platform.release_for }}
+          done
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v1
+        with:
+          draft: true
+          files: "host_exposer_*"
+
+
