@@ -18,27 +18,27 @@ jobs:
           - release_for: Linux-x86_64
             os: ubuntu-latest
             target: x86_64-unknown-linux-musl
-            bins: ["host_exposer_client", "host_exposer_server"]
+            bins: "host_exposer_client host_exposer_server"
           - release_for: Linux-aarch64
             os: ubuntu-latest
             target: aarch64-unknown-linux-musl
-            bins: ["host_exposer_client", "host_exposer_server"]
+            bins: "host_exposer_client host_exposer_server"
           - release_for: Windows-x86_64
             os: windows-latest
             target: x86_64-pc-windows-msvc
-            bins: ["host_exposer_client.exe", "host_exposer_server.exe"]
+            bins: "host_exposer_client.exe host_exposer_server.exe"
           - release_for: Windows-aarch64
             os: windows-latest
             target: aarch64-pc-windows-msvc
-            bins: ["host_exposer_client.exe", "host_exposer_server.exe"]
+            bins: "host_exposer_client.exe host_exposer_server.exe"
           - release_for: macOS-x86_64
             os: macos-latest
             target: x86_64-apple-darwin
-            bins: ["host_exposer_client", "host_exposer_server"]
+            bins: "host_exposer_client host_exposer_server"
           - release_for: macOS-aarch64
             os: macos-latest
             target: aarch64-apple-darwin
-            bins: ["host_exposer_client", "host_exposer_server"]
+            bins: "host_exposer_client host_exposer_server"
 
     runs-on: ${{ matrix.platform.os }}
     steps:
