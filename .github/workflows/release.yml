@@ -87,3 +87,4 @@ jobs:
         with:
           draft: true
           files: "host_exposer_*"
+          token: ${{ secrets.RELEASE_TOKEN }}
