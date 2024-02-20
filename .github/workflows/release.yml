@@ -55,11 +55,18 @@ jobs:
         working-directory: server/frontend
         run: pnpm build
 
-      # - name: Setup Rustup toolchain
-      #   run: rustup toolchain install stable --profile minimal --target ${{ matrix.platform.target }} --no-self-update
+      - name: Setup Musl Tools
+        uses: awalsh128/cache-apt-pkgs-action@v1
+        with:
+          packages: musl-tools
+          version: 1.0
+        if: endsWith(matrix.platform.target, 'musl')
 
-      # - name: Setup Rust cache
-      #   uses: Swatinem/rust-cache@v2
+      - name: Setup Rustup toolchain
+        run: rustup toolchain install stable --profile minimal --target ${{ matrix.platform.target }} --no-self-update
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
 
       - name: Build binaries
         uses: houseabsolute/actions-rust-cross@v0
