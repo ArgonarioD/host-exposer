@@ -14,11 +14,11 @@ English | <a href="README_zh_CN.md">简体中文</a>
 
 ## Usage
 
-1. Run `host-exposer-server` on the server machine (specify the authentication password via command line arguments or use a randomly generated password each time you start the server).
-2. Run `host-exposer-client` on the client machine, and specify the server's Websocket URI via command line arguments (by default, it listens on port 3030, and the Websocket URI is at `/expose`), for example:
+1. Run `host_exposer_server` on the server machine (specify the authentication password via command line arguments or use a randomly generated password each time you start the server).
+2. Run `host_exposer_client` on the client machine, and specify the server's Websocket URI via command line arguments (by default, it listens on port 3030, and the Websocket URI is at `/expose`), for example:
 
    ```sh
-   host-exposer-client ws://your-server-ip:3030/expose -p 'your-password'
+   host_exposer_client ws://your-server-ip:3030/expose -p 'your-password'
    ```
 
 3. Access the port that the server is listening on via a web browser, enter the password, and you can view all the host addresses of the clients that have connected to the server.

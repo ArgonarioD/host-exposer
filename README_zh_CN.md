@@ -14,11 +14,11 @@
 
 ## 使用
 
-1. 在服务端运行 `host-exposer-server`（并通过命令行参数指定认证密码 或 使用每次启动自动生成的随机密码）
-2. 在客户端运行 `host-exposer-client`，并通过命令行参数指定服务端的 Websocket URI（默认情况下，监听在 3030 端口，Websocket URI 位于 `/expose`），如：
+1. 在服务端运行 `host_exposer_server`（并通过命令行参数指定认证密码 或 使用每次启动自动生成的随机密码）
+2. 在客户端运行 `host_exposer_client`，并通过命令行参数指定服务端的 Websocket URI（默认情况下，监听在 3030 端口，Websocket URI 位于 `/expose`），如：
     
    ```sh
-   host-exposer-client ws://your-server-ip:3030/expose -p 'your-password'
+   host_exposer_client ws://your-server-ip:3030/expose -p 'your-password'
    ```
 3. 通过浏览器访问服务端监听的端口，输入密码，即可查看所有已连接到服务端的客户端的主机地址。
 
