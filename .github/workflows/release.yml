@@ -75,11 +75,15 @@ jobs:
           strip: true
           args: "--release --locked --bins"
 
-      - name: Move and rename binaries
+      - name: Package binaries as archive
         shell: bash
         run: |
           for bin in ${{ matrix.platform.bins }}; do
-            mv target/${{ matrix.platform.target }}/release/$bin $bin-${{ matrix.platform.release_for }}
+            if [[ "${{ matrix.platform.os }}" == "windows-latest" ]]; then
+              7z a $bin-${{ matrix.platform.release_for }}.zip target/${{ matrix.platform.target }}/release/$bin
+            else
+              tar czvf $bin-${{ matrix.platform.release_for }}.tar.gz target/${{ matrix.platform.target }}/release/$bin
+            fi
           done
 
       - name: Publish GitHub release
