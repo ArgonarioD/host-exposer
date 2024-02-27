@@ -12,7 +12,7 @@ clap = { workspace = true, features = ["derive", "unicode", "env"] }
 local-ip-address = "0.5.7"
 #surge-ping = "0.8.0"
 tokio = { workspace = true }
-tokio-tungstenite = { workspace = true }
+tokio-tungstenite = { workspace = true, features = ["rustls-tls-native-roots"] }
 uuid = { workspace = true, features = ["v4", "serde"] }
 public-lib = { workspace = true }
 futures-util = { workspace = true }
