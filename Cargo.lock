@@ -1722,8 +1722,10 @@ dependencies = [
  "clap",
  "serde",
  "serde_json",
+ "time",
  "tokio-tungstenite",
  "tracing",
+ "tracing-subscriber",
  "uuid",
 ]
 

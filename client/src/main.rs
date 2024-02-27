@@ -6,17 +6,17 @@ use base64::prelude::BASE64_STANDARD;
 use clap::{arg, Parser};
 use futures_util::{SinkExt, StreamExt};
 use local_ip_address::list_afinet_netifas;
+use time::UtcOffset;
 use tokio::fs::OpenOptions;
 use tokio::io;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::http::Uri;
 use tracing::{debug, error, info};
-use tracing_subscriber::fmt::time::LocalTime;
 use uuid::Uuid;
 
 use public_lib::message::{IpAddresses, MessagePack};
-use public_lib::tracing::TracingLogLevel;
+use public_lib::tracing::{tracing_timer, TracingLogLevel};
 
 #[derive(Parser, Debug)]
 #[command(name = "Host Exposer Client")]
@@ -31,6 +31,9 @@ struct Args {
     /// Maximum Log level
     #[arg(long, ignore_case = true, value_enum, default_value_t)]
     max_log_level: TracingLogLevel,
+    /// Default UTC offset if the application cannot determine the local time zone
+    #[arg(long, default_value = "+00:00", value_parser = public_lib::times::parse_utc_offset, value_name = "UTC_OFFSET")]
+    default_offset: UtcOffset,
 }
 
 fn parse_uri(s: &str) -> Result<Uri, String> {
@@ -69,8 +72,9 @@ async fn get_self_id() -> io::Result<Uuid> {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
-    let timer = LocalTime::new(time::format_description::well_known::Iso8601::DATE_TIME_OFFSET);
-    tracing_subscriber::fmt().with_timer(timer).with_max_level(args.max_log_level).init();
+    tracing_subscriber::fmt()
+        .with_timer(tracing_timer(args.default_offset))
+        .with_max_level(args.max_log_level).init();
     let (ws_stream, _) = connect_async(&args.target_uri).await?;
     info!("Establishing connection to server {}", &args.target_uri);
     let self_id = get_self_id().await?;

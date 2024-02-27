@@ -8,10 +8,9 @@ use rust_embed::RustEmbed;
 use sea_orm::DatabaseConnection;
 use time::UtcOffset;
 use tracing::warn;
-use tracing_subscriber::fmt::time::LocalTime;
 
 use clients::Clients;
-use public_lib::tracing::TracingLogLevel;
+use public_lib::tracing::{tracing_timer, TracingLogLevel};
 
 use crate::auth::basic_auth;
 use crate::db::setup_db_connection;
@@ -22,7 +21,6 @@ mod db;
 mod entity;
 mod auth;
 mod migration;
-mod times;
 
 
 #[derive(RustEmbed, Clone)]
@@ -46,8 +44,8 @@ struct Args {
     #[arg(long, ignore_case = true, value_enum, default_value_t)]
     max_log_level: TracingLogLevel,
     /// Default UTC offset if the application cannot determine the local time zone
-    #[arg(long, default_value = "+00:00", value_parser = times::parse_utc_offset, value_name = "UTC_OFFSET")]
-    default_offset: UtcOffset
+    #[arg(long, default_value = "+00:00", value_parser = public_lib::times::parse_utc_offset, value_name = "UTC_OFFSET")]
+    default_offset: UtcOffset,
 }
 
 #[derive(Clone)]
@@ -55,15 +53,16 @@ struct AppState {
     db: DatabaseConnection,
     clients: Clients,
     server_base64_password: String,
-    default_offset: UtcOffset
+    default_offset: UtcOffset,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
-    let timer = LocalTime::new(time::format_description::well_known::Iso8601::DATE_TIME_OFFSET);
-    tracing_subscriber::fmt().with_timer(timer).with_max_level(args.max_log_level).init();
+    tracing_subscriber::fmt()
+        .with_timer(tracing_timer(args.default_offset))
+        .with_max_level(args.max_log_level).init();
 
     let db = setup_db_connection().await?;
 

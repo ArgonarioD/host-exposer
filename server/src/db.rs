@@ -19,11 +19,11 @@ pub(crate) mod client {
     use sea_orm::prelude::Expr;
     use time::UtcOffset;
     use uuid::Uuid;
+    use public_lib::times::local_offset_date_time;
 
     use crate::entity::client;
     use crate::entity::prelude::DbClient;
     use crate::result::HEError;
-    use crate::times::local_offset_date_time;
 
     pub async fn save_new_client_information(id: &Uuid, db: &DatabaseConnection, default_offset: &UtcOffset) -> Result<(), HEError> {
         let db_client = DbClient::find_by_id(*id).one(db).await?;

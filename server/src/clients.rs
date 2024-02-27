@@ -17,13 +17,13 @@ use tracing::{debug, error, info};
 use uuid::Uuid;
 
 use public_lib::message::{IpAddresses, MessagePack};
+use public_lib::times::local_offset_date_time;
 
 use crate::{AppState, db};
 use crate::db::client::save_new_client_information;
 use crate::entity::client;
 use crate::entity::prelude::DbClient;
 use crate::result::HEError;
-use crate::times::local_offset_date_time;
 
 #[derive(Serialize)]
 pub struct Client {

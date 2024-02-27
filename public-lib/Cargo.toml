@@ -14,3 +14,5 @@ tokio-tungstenite = { workspace = true }
 uuid = { workspace = true, features = ["serde"] }
 axum = { workspace = true, features = ["ws"] }
 tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["time", "local-time"] }
+time = { workspace = true, features = ["serde-human-readable", "local-offset", "serde-well-known", "macros"] }
