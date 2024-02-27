@@ -1,6 +1,7 @@
 use sea_orm::{ConnectOptions, Database, DatabaseConnection};
 use sea_orm_migration::MigratorTrait;
 use tracing::log;
+
 use crate::migration::Migrator;
 use crate::result::HEError;
 
@@ -16,17 +17,18 @@ pub(crate) mod client {
     use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
     use sea_orm::ActiveValue::Set;
     use sea_orm::prelude::Expr;
-    use time::OffsetDateTime;
+    use time::UtcOffset;
     use uuid::Uuid;
 
     use crate::entity::client;
     use crate::entity::prelude::DbClient;
     use crate::result::HEError;
+    use crate::times::local_offset_date_time;
 
-    pub async fn save_new_client_information(id: &Uuid, db: &DatabaseConnection) -> Result<(), HEError> {
+    pub async fn save_new_client_information(id: &Uuid, db: &DatabaseConnection, default_offset: &UtcOffset) -> Result<(), HEError> {
         let db_client = DbClient::find_by_id(*id).one(db).await?;
         if db_client.is_none() {
-            let now = OffsetDateTime::now_local().unwrap();
+            let now = local_offset_date_time(default_offset);
             let new_client = client::ActiveModel {
                 id: Set(*id),
                 name: Set(id.to_string()),
@@ -40,9 +42,9 @@ pub(crate) mod client {
         Ok(())
     }
 
-    pub async fn update_clients_fetch_time(ids: &[Uuid], db: &DatabaseConnection) -> Result<(), HEError> {
+    pub async fn update_clients_fetch_time(ids: &[Uuid], db: &DatabaseConnection, default_offset: &UtcOffset) -> Result<(), HEError> {
         DbClient::update_many()
-            .col_expr(client::Column::LastFetchTime, Expr::value(OffsetDateTime::now_local().unwrap()))
+            .col_expr(client::Column::LastFetchTime, Expr::value(local_offset_date_time(default_offset)))
             .filter(client::Column::Id.is_in(ids.iter().copied()))
             .exec(db)
             .await?;

@@ -7,13 +7,13 @@ use axum::extract::ws::{Message, WebSocket};
 use axum::Json;
 use axum::response::IntoResponse;
 use futures_util::{SinkExt, StreamExt};
-use tracing::{debug, error, info};
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use time::OffsetDateTime;
+use time::UtcOffset;
 use tokio::sync::{mpsc, RwLock};
 use tokio_stream::wrappers::UnboundedReceiverStream;
+use tracing::{debug, error, info};
 use uuid::Uuid;
 
 use public_lib::message::{IpAddresses, MessagePack};
@@ -23,6 +23,7 @@ use crate::db::client::save_new_client_information;
 use crate::entity::client;
 use crate::entity::prelude::DbClient;
 use crate::result::HEError;
+use crate::times::local_offset_date_time;
 
 #[derive(Serialize)]
 pub struct Client {
@@ -35,12 +36,12 @@ pub struct Client {
 }
 
 impl Client {
-    async fn get_adapter_addresses(&mut self, db: &DatabaseConnection) -> Result<Vec<IpAddresses>, HEError> {
+    async fn get_adapter_addresses(&mut self, db: &DatabaseConnection, default_offset: &UtcOffset) -> Result<Vec<IpAddresses>, HEError> {
         self.handler_tx.send(MessagePack::AddrRequest.to_framework_message())?;
         if let Some(message) = self.client_rx.next().await {
             match MessagePack::from_str(message.to_text().unwrap()) {
                 Ok(MessagePack::AddrResponse { adapter_addresses }) => {
-                    save_new_client_information(&self.id, db).await?;
+                    save_new_client_information(&self.id, db, default_offset).await?;
                     Ok(adapter_addresses)
                 }
                 Ok(_) => {
@@ -59,12 +60,12 @@ impl Client {
 pub type Clients = Arc<RwLock<HashMap<Uuid, Client>>>;
 
 pub async fn handle_expose_websocket(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl IntoResponse {
-    ws.on_upgrade(|socket| async {
-        handle_connection(socket, state.clients, state.db, state.server_base64_password).await
+    ws.on_upgrade(move |socket| async move {
+        handle_connection(socket, state.clients, state.db, state.server_base64_password, state.default_offset).await
     })
 }
 
-pub async fn handle_connection(ws: WebSocket, clients: Clients, db: DatabaseConnection, server_password: String) {
+pub async fn handle_connection(ws: WebSocket, clients: Clients, db: DatabaseConnection, server_password: String, default_offset: UtcOffset) {
     let (mut ws_tx, mut ws_rx) = ws.split();
 
     let (handler_tx, handler_rx) = mpsc::unbounded_channel();
@@ -87,7 +88,7 @@ pub async fn handle_connection(ws: WebSocket, clients: Clients, db: DatabaseConn
                 clients.write().await.insert(id, Client { id, handler_tx, client_rx });
                 info!("Establishing connection with id: {}", &id);
                 ws_tx.send(MessagePack::Acknowledge.to_framework_message()).await.unwrap();
-                if let Err(e) = save_new_client_information(&id, &db).await {
+                if let Err(e) = save_new_client_information(&id, &db, &default_offset).await {
                     error!("Failed to save new client information: {:?}", e);
                     return;
                 }
@@ -131,18 +132,19 @@ pub async fn get_clients_information(State(state): State<AppState>) -> Result<Js
         .copied()
         .collect();
     let db = &state.db;
+    let default_offset = &state.default_offset;
     let target_clients: HashMap<Uuid, client::Model> = DbClient::find()
         .filter(client::Column::Id.is_in(all_client_ids))
         .all(db).await?
         .into_iter()
         .map(|mut client| {
-            client.last_fetch_time = OffsetDateTime::now_local().unwrap();
+            client.last_fetch_time = local_offset_date_time(default_offset);
             (client.id, client)
         })
         .collect();
     let mut updated_client_ids: Vec<Uuid> = Vec::new();
     for (id, client) in clients.iter_mut() {
-        let client_adapter_addresses = client.get_adapter_addresses(db).await.unwrap_or_else(|e| {
+        let client_adapter_addresses = client.get_adapter_addresses(db, default_offset).await.unwrap_or_else(|e| {
             error!("Failed to get adapter addresses: {:?}", e);
             vec![IpAddresses::empty(e.to_string())]
         });
@@ -152,7 +154,7 @@ pub async fn get_clients_information(State(state): State<AppState>) -> Result<Js
         }));
         updated_client_ids.push(*id);
     }
-    db::client::update_clients_fetch_time(updated_client_ids.as_slice(), db).await?;
+    db::client::update_clients_fetch_time(updated_client_ids.as_slice(), db, default_offset).await?;
     Ok(Json(clients_info))
 }
 
@@ -164,7 +166,7 @@ pub struct ModifyClientNameBody {
 pub async fn modify_client_name(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
-    Json(body): Json<ModifyClientNameBody>
+    Json(body): Json<ModifyClientNameBody>,
 ) -> Result<(), HEError> {
     let db = &state.db;
     db::client::modify_client_name(&id, body.new_name, db).await?;

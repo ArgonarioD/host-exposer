@@ -6,6 +6,7 @@ use base64::prelude::BASE64_STANDARD;
 use clap::Parser;
 use rust_embed::RustEmbed;
 use sea_orm::DatabaseConnection;
+use time::UtcOffset;
 use tracing::warn;
 use tracing_subscriber::fmt::time::LocalTime;
 
@@ -21,6 +22,7 @@ mod db;
 mod entity;
 mod auth;
 mod migration;
+mod times;
 
 
 #[derive(RustEmbed, Clone)]
@@ -43,6 +45,9 @@ struct Args {
     /// Maximum Log level
     #[arg(long, ignore_case = true, value_enum, default_value_t)]
     max_log_level: TracingLogLevel,
+    /// Default UTC offset if the application cannot determine the local time zone
+    #[arg(long, default_value = "+00:00", value_parser = times::parse_utc_offset, value_name = "UTC_OFFSET")]
+    default_offset: UtcOffset
 }
 
 #[derive(Clone)]
@@ -50,6 +55,7 @@ struct AppState {
     db: DatabaseConnection,
     clients: Clients,
     server_base64_password: String,
+    default_offset: UtcOffset
 }
 
 #[tokio::main]
@@ -71,7 +77,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let base64_password = BASE64_STANDARD.encode(password);
 
-    let state = AppState { db, clients: Clients::default(), server_base64_password: base64_password };
+    let state = AppState { db, clients: Clients::default(), server_base64_password: base64_password, default_offset: args.default_offset };
 
     let client_rest_router = Router::new()
         .route("/", get(clients::get_clients_information))
