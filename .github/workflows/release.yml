@@ -15,13 +15,21 @@ jobs:
     strategy:
       matrix:
         platform:
-          - release_for: Linux-x86_64
+          - release_for: Linux-x86_64-musl
             os: ubuntu-latest
             target: x86_64-unknown-linux-musl
             bins: "host_exposer_client host_exposer_server"
-          - release_for: Linux-aarch64
+          - release_for: Linux-aarch64-musl
             os: ubuntu-latest
             target: aarch64-unknown-linux-musl
+            bins: "host_exposer_client host_exposer_server"
+          - release_for: Linux-x86_64-gnu
+            os: ubuntu-20.04
+            target: x86_64-unknown-linux-gnu
+            bins: "host_exposer_client host_exposer_server"
+          - release_for: Linux-aarch64-gnu
+            os: ubuntu-20.04
+            target: aarch64-unknown-linux-gnu
             bins: "host_exposer_client host_exposer_server"
           - release_for: Windows-x86_64
             os: windows-latest
@@ -78,13 +86,15 @@ jobs:
       - name: Package binaries as archive
         shell: bash
         run: |
+          cd target/${{ matrix.platform.target }}/release
           for bin in ${{ matrix.platform.bins }}; do
             if [[ "${{ matrix.platform.os }}" == "windows-latest" ]]; then
-              7z a $bin-${{ matrix.platform.release_for }}.zip target/${{ matrix.platform.target }}/release/$bin
+              7z a ../../../$bin-${{ matrix.platform.release_for }}.zip $bin
             else
-              tar czvf $bin-${{ matrix.platform.release_for }}.tar.gz target/${{ matrix.platform.target }}/release/$bin
+              tar czvf ../../../$bin-${{ matrix.platform.release_for }}.tar.gz $bin
             fi
           done
+          cd ../../..
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v1
